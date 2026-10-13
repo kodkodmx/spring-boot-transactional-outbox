@@ -1,0 +1,5 @@
+app:
+  outbox:
+    # Scheduler effectively off in tests; tests call the relay explicitly.
+    initial-delay-ms: 3600000
+    poll-interval-ms: 3600000

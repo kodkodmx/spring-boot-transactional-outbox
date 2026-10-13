@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: spring-boot-transactional-outbox
+  datasource:
+    url: jdbc:h2:mem:outbox;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+
+app:
+  topics:
+    orders: order.events
+  outbox:
+    poll-interval-ms: 500
+    batch-size: 50
