@@ -1,8 +1,6 @@
 # Spring Boot Transactional Outbox (minimal)
 
-<!-- MARKY: copy pending -->
-A small, runnable example of the transactional outbox pattern with Spring Boot 4.1, JPA and Kafka.
-It is one focused piece extracted from the Spring Boot 4 Kafka Event Starter (see "Full kits" below).
+Saving a row and publishing a Kafka event in the same request looks simple until one of them fails. This repo is a small, runnable example of the transactional outbox pattern with Spring Boot 4.1, JPA and Kafka: the event is written in the same database transaction as the business data, and a relay publishes it afterwards. The tests run with embedded Kafka and H2, so `./mvnw verify` works without Docker. It's one focused piece of the Spring Boot 4 Kafka Event Starter (see "Full kits" below).
 
 ## What problem it solves
 
@@ -80,12 +78,14 @@ Flyway migrations, PostgreSQL, multi-instance relay locking, outbox cleanup, Doc
 
 ## Full kits
 
-This repo is free. The complete, paid kits by the same author are on Payhip:
+This example is free under MIT and stays small on purpose. If you want the parts listed in "Limits of this example" already wired together, the same author sells two source-code kits on Payhip:
 
-- **Spring Boot 4 Kafka Event Starter**: transactional outbox, idempotent consumers, retries + dead-letter topics, sample saga.
+- **Spring Boot 4 Kafka Event Starter** (25 USD): transactional outbox, idempotent consumers, exponential retries with a dead-letter topic, a sample Order to Inventory saga, Docker Compose (PostgreSQL + Kafka KRaft) and CI.
   https://payhip.com/b/mH2oM
-- **Spring Boot 4 API Starter**: REST API with JWT + rotating refresh tokens, roles, PostgreSQL/Flyway.
+- **Spring Boot 4 API Starter** (29 USD): REST API with JWT and rotating refresh tokens, PostgreSQL/Flyway, Testcontainers tests and Docker.
   https://payhip.com/b/wXQ7a
+
+You don't need either kit to use the pattern here.
 
 ## License
 
