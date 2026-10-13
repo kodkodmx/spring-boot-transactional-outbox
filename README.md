@@ -15,7 +15,7 @@ The outbox pattern fixes this:
 1. The business row and an `outbox_events` row are written in **one database transaction**.
 2. A separate relay polls pending outbox rows, sends them to Kafka and marks them published.
 
-The result is at-least-once delivery that never publishes uncommitted data. Each message carries
+The result is at-least-once delivery (a crash between the Kafka send and the commit can still resend, which is why the header exists) that never publishes uncommitted data. Each message carries
 an `eventId` header so consumers can de-duplicate.
 
 ## Requirements
@@ -41,6 +41,7 @@ an `eventId` header so consumers can de-duplicate.
 | `rollbackLeavesNeitherOrderNorEvent` | If the surrounding transaction fails, neither row exists. |
 | `validationFailureWritesNothing` | A rejected request leaves no order and no event. |
 | `outboxWriterRefusesToRunWithoutTransaction` | `OutboxWriter` uses `Propagation.MANDATORY`, so it cannot be called outside a transaction by mistake. |
+| `retryAfterFailedSendDeliversExactlyOnce` | First send fails, row stays pending; the retry delivers it and exactly one record (same `eventId`) reaches Kafka; further runs send nothing. |
 | `relayPublishesMarksSentAndDoesNotResend` | The relay sends the record (key = order id, `eventId` header), marks it published, and a second run sends nothing. |
 
 `OutboxRelayRetryTest` (plain unit test, mocked `KafkaTemplate`):

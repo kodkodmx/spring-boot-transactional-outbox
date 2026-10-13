@@ -17,6 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import java.util.concurrent.CompletableFuture;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
@@ -45,6 +51,7 @@ class OutboxIntegrationTest {
     @Autowired OutboxEventRepository outbox;
     @Autowired TransactionTemplate tx;
     @Autowired EmbeddedKafkaBroker broker;
+    @Autowired KafkaTemplate<String, String> kafkaTemplate;
 
     private Consumer<String, String> consumer;
 
@@ -121,5 +128,35 @@ class OutboxIntegrationTest {
         ConsumerRecords<String, String> more = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(2));
         assertThat(more.count()).isZero();
         assertThat(outbox.countByPublishedAtIsNull()).isZero();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retryAfterFailedSendDeliversExactlyOnce() {
+        orderService.placeOrder("lock", 1);
+        UUID eventId = outbox.findAll().getFirst().getId();
+
+        // First attempt: broker error. Then the real embedded broker.
+        KafkaTemplate<String, String> flaky = spy(kafkaTemplate);
+        doReturn(CompletableFuture.failedFuture(new RuntimeException("broker down")))
+                .doCallRealMethod()
+                .when(flaky).send(any(ProducerRecord.class));
+        OutboxRelay flakyRelay = new OutboxRelay(outbox, flaky, 50);
+
+        assertThat((int) tx.execute(s -> flakyRelay.publishPending())).isZero();
+        assertThat(outbox.findById(eventId).orElseThrow().isPublished()).isFalse();
+
+        assertThat((int) tx.execute(s -> flakyRelay.publishPending())).isEqualTo(1);
+        assertThat((int) tx.execute(s -> flakyRelay.publishPending())).isZero();
+        assertThat(relay.publishPending()).isZero();
+
+        // The topic is shared with other tests, so count only records carrying this event id.
+        ConsumerRecords<String, String> all = KafkaTestUtils.getRecords(consumer, Duration.ofSeconds(5));
+        long copies = java.util.stream.StreamSupport.stream(all.spliterator(), false)
+                .filter(r -> eventId.toString().equals(
+                        new String(r.headers().lastHeader("eventId").value(), StandardCharsets.UTF_8)))
+                .count();
+        assertThat(copies).isEqualTo(1);
+        assertThat(outbox.findById(eventId).orElseThrow().isPublished()).isTrue();
     }
 }
